@@ -45,6 +45,10 @@ class Router:
         #    'self.neighbors'. Para cada vizinho, o 'cost' é o custo do link direto
         #    e o 'next_hop' é o endereço do próprio vizinho.
         self.routing_table = {}
+        self.routing_table[self.my_network] = {
+            "cost": 0,
+            "next_hop": self.my_network
+        }
 
         print("Tabela de roteamento inicial:")
         print(json.dumps(self.routing_table, indent=4))
@@ -153,6 +157,44 @@ def receive_update():
     #
     # 6. Mantenha um registro se sua tabela mudou ou não. Se mudou, talvez seja
     #    uma boa ideia imprimir a nova tabela no console.
+
+    if sender_address not in router_instance.neighbors:
+        print("Remetente não é vizinho direto. Ignorando.")
+        return jsonify({"status": "ignored"}), 200
+    
+    table_changed = False
+    
+    direct_cost = router_instance.neighbors[sender_address]
+
+    for network, info in sender_table.items():
+        received_cost = info["cost"]
+        new_cost = direct_cost + received_cost
+
+        if network == router_instance.my_network: continue
+
+        if network not in router_instance.routing_table:
+            router_instance.routing_table[network] = {
+                "cost": new_cost,
+                "next_hop": sender_address
+            }
+            table_changed = True
+        else:
+            current_cost = router_instance.routing_table[network]["cost"]
+            current_next_hop = router_instance.routing_table[network]["next_hop"]
+
+            if new_cost < current_cost:
+                router_instance.routing_table[network] = {
+                    "cost": new_cost,
+                    "next_hop": sender_address
+                }
+                table_changed = True
+            elif current_next_hop == sender_address:
+                router_instance.routing_table[network]["cost"] = new_cost
+                table_changed = True
+
+    if table_changed:
+        print("Tabela atualizada:")
+        print(json.dumps(router_instance.routing_table, indent=4))
 
     return jsonify({"status": "success", "message": "Update received"}), 200
 
