@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import copy
 import csv
 import json
 import threading
@@ -44,6 +45,13 @@ class Router:
         # 3. Adicione as rotas para seus vizinhos diretos, usando o dicionário
         #    'self.neighbors'. Para cada vizinho, o 'cost' é o custo do link direto
         #    e o 'next_hop' é o endereço do próprio vizinho.
+
+        # rede1 = "192.168.0.0/24"
+        # rede2 = "192.168.1.0/24"
+        # print("REDE1 e REDE2," + rede1 + '' + rede2 )
+
+        # print(self.aggregate(rede1, rede2))
+
         self.routing_table = {}
         self.routing_table[self.my_network] = {
             "cost": 0,
@@ -72,6 +80,61 @@ class Router:
             except Exception as e:
                 print(f"Erro durante a atualização periódida: {e}")
 
+    def convert_ip_to_int(self, ip_str):
+        split_ip = ip_str.split(".")
+        ip_list_int = list(map(int, split_ip))
+        return (
+            (ip_list_int[0] << 24) |
+            (ip_list_int[1] << 16) |
+            (ip_list_int[2] << 8)  |
+            ip_list_int[3]
+        )
+    
+    def convert_int_to_ip(self, ip_int):
+        return ".".join([
+            str((ip_int >> 24) & 255),
+            str((ip_int >> 16) & 255),
+            str((ip_int >> 8) & 255),
+            str(ip_int & 255)
+        ])
+    
+    def aggregate(self, network1, network2):
+        ip1, prefix1 = network1.split("/")
+        ip2, prefix2 = network2.split("/")
+
+        prefix1 = int(prefix1)
+        prefix2 = int(prefix2)
+
+        if prefix1 != prefix2: return None
+
+        ip1 = self.convert_ip_to_int(ip1)
+        ip2 = self.convert_ip_to_int(ip2)
+
+        host_bits = 32 - prefix1
+        number_of_ip_addresses = 1 << host_bits ## 2^n
+
+        if abs(ip1 - ip2) == number_of_ip_addresses: ## são adjacentes (ex: 192.168.21.0 - 192;168.20.0 = 256)
+            lower_ip = min(ip1, ip2)  ## pega o menor ip dos dois
+            new_prefix = prefix1 - 1 ## ex: /24 vira /23
+            new_host_bits = 32 - new_prefix ## nova quantidade de hosts
+            new_block_size = number_of_ip_addresses * 2
+
+
+            if lower_ip % new_block_size != 0:
+                return None
+
+            all_ones = 0xFFFFFFFF # 11111111.11111111.11111111.11111111
+            shifted = all_ones << new_host_bits ## ex: 1111111.11111111.11111110.00000000
+            mask = shifted & 0xFFFFFFFF
+
+            supernet_ip = lower_ip & mask
+            return f"{self.convert_int_to_ip(supernet_ip)}/{new_prefix}"
+        
+        else:
+            return None
+        
+    
+
     def send_updates_to_neighbors(self):
         """
         Envia a tabela de roteamento (potencialmente sumarizada) para todos os vizinhos.
@@ -85,7 +148,8 @@ class Router:
         # 2. IMPLEMENTE A LÓGICA DE SUMARIZAÇÃO nesta cópia.
         # 3. ENVIE A CÓPIA SUMARIZADA no payload, em vez da tabela original.
         
-        tabela_para_enviar = self.routing_table # ATENÇÃO: Substitua pela cópia sumarizada.
+        tabela_para_enviar = copy.deepcopy(self.routing_table)
+        tabela_para_enviar = self.apply_summarization(tabela_para_enviar)
 
         payload = {
             "sender_address": self.my_address,
