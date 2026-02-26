@@ -52,6 +52,10 @@ class Router:
 
         # print(self.aggregate(rede1, rede2))
 
+        print(self.summarize_non_contiguous_networks(["10.0.0.0/24", "10.0.1.0/24", "10.0.2.0/24"]))
+        print(self.summarize_non_contiguous_networks(["172.16.4.0/24", "172.16.5.0/24", "172.16.6.0/24", "172.16.7.0/24"]))
+        print(self.summarize_non_contiguous_networks(["10.0.0.0/25", "10.0.0.128/25", "10.0.1.0/25", "10.0.1.128/25"]))
+        print(self.summarize_non_contiguous_networks(["10.0.0.0/24", "10.0.1.0/25"]))
         self.routing_table = {}
         self.routing_table[self.my_network] = {
             "cost": 0,
@@ -133,6 +137,40 @@ class Router:
         else:
             return None
         
+    def summarize_non_contiguous_networks(self, networks):
+        """
+        networks: lista tipo ['10.0.1.0/24', '10.0.2.0/24', ...]
+        Retorna super-rede ou None
+        """
+
+        if len(networks) < 2:
+            return None
+
+        ips = []
+
+        for net in networks:
+            ip, prefix = net.split("/")
+            ips.append(self.convert_ip_to_int(ip))
+
+        min_ip = min(ips)
+        max_ip = max(ips)
+
+        diff = min_ip ^ max_ip
+
+        # quantos bits são necessários para representar diff
+        bits_diff = diff.bit_length()
+
+        new_prefix = 32 - bits_diff
+
+        # evitar superdimensionamento absurdo
+        if new_prefix < 8:
+            return None
+
+        mask = (0xFFFFFFFF << (32 - new_prefix)) & 0xFFFFFFFF
+        supernet_ip = min_ip & mask
+
+        return f"{self.convert_int_to_ip(supernet_ip)}/{new_prefix}"
+            
     
 
     def send_updates_to_neighbors(self):
@@ -149,7 +187,7 @@ class Router:
         # 3. ENVIE A CÓPIA SUMARIZADA no payload, em vez da tabela original.
         
         tabela_para_enviar = copy.deepcopy(self.routing_table)
-        tabela_para_enviar = self.apply_summarization(tabela_para_enviar)
+        tabela_para_enviar = tabela_para_enviar
 
         payload = {
             "sender_address": self.my_address,
