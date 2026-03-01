@@ -46,21 +46,66 @@ class Router:
         #    'self.neighbors'. Para cada vizinho, o 'cost' é o custo do link direto
         #    e o 'next_hop' é o endereço do próprio vizinho.
 
-        # rede1 = "192.168.0.0/24"
-        # rede2 = "192.168.1.0/24"
-        # print("REDE1 e REDE2," + rede1 + '' + rede2 )
+        # Lock para evitar condições de corrida entre a thread periódica e o Flask
+        self.lock = threading.Lock()
 
-        # print(self.aggregate(rede1, rede2))
-
-        print(self.summarize_non_contiguous_networks(["10.0.0.0/24", "10.0.1.0/24", "10.0.2.0/24"]))
-        print(self.summarize_non_contiguous_networks(["172.16.4.0/24", "172.16.5.0/24", "172.16.6.0/24", "172.16.7.0/24"]))
-        print(self.summarize_non_contiguous_networks(["10.0.0.0/25", "10.0.0.128/25", "10.0.1.0/25", "10.0.1.128/25"]))
-        print(self.summarize_non_contiguous_networks(["10.0.0.0/24", "10.0.1.0/25"]))
         self.routing_table = {}
         self.routing_table[self.my_network] = {
-            "cost": 0,
-            "next_hop": self.my_network
+            'cost': 0,
+            'next_hop': self.my_network
         }
+
+        # for vizinho_address, link_cost in self.neighbors.items():
+        #     self.routing_table[vizinho_address] = {
+        #         'cost': link_cost,
+        #         'next_hop': vizinho_address
+        #     }
+
+        print(self.tentar_sumarizar("192.168.20.0/24", "192.168.21.0/24"))
+        print(self.tentar_sumarizar("192.168.0.0/24", "192.168.1.0/24"))
+        print(self.tentar_sumarizar("10.0.0.0/23", "10.0.2.0/23"))
+        print(self.tentar_sumarizar("172.16.0.0/25", "172.16.0.128/25"))
+        print("")
+        print(self.tentar_sumarizar("192.168.20.0/24", "192.168.22.0/24"))
+        print(self.tentar_sumarizar("192.168.21.0/24", "192.168.22.0/24"))
+        print(self.tentar_sumarizar("192.168.20.0/24", "192.168.20.128/25"))
+        
+        tabela = {
+    "10.0.0.0/24": {"cost": 2, "next_hop": "127.0.0.1:5001"},
+    "10.0.1.0/24": {"cost": 3, "next_hop": "127.0.0.1:5001"},
+}
+        tabela2 = {
+    "10.0.0.0/24": {"cost": 2, "next_hop": "127.0.0.1:5001"},
+    "10.0.2.0/24": {"cost": 3, "next_hop": "127.0.0.1:5001"},
+}
+        
+        tabela3 = {
+    "10.0.0.0/24": {"cost": 2, "next_hop": "127.0.0.1:5001"},
+    "10.0.1.0/24": {"cost": 3, "next_hop": "127.0.0.1:5002"},
+}
+        
+        tabela4 = {
+    "10.0.0.0/24": {"cost": 1, "next_hop": "127.0.0.1:5001"},
+    "10.0.1.0/24": {"cost": 2, "next_hop": "127.0.0.1:5001"},
+    "10.0.2.0/24": {"cost": 3, "next_hop": "127.0.0.1:5001"},
+    "10.0.3.0/24": {"cost": 4, "next_hop": "127.0.0.1:5001"},
+}
+
+        print("sumarizar tabela")
+        print("1")
+        print(self.sumarizar_tabela(tabela))
+        print("2")
+
+        print(self.sumarizar_tabela(tabela2))
+        print("3")
+
+    
+        
+        print(self.sumarizar_tabela(tabela3))
+        print("4")
+
+        print(self.sumarizar_tabela(tabela4))
+
 
         print("Tabela de roteamento inicial:")
         print(json.dumps(self.routing_table, indent=4))
@@ -84,93 +129,151 @@ class Router:
             except Exception as e:
                 print(f"Erro durante a atualização periódida: {e}")
 
-    def convert_ip_to_int(self, ip_str):
-        split_ip = ip_str.split(".")
-        ip_list_int = list(map(int, split_ip))
-        return (
-            (ip_list_int[0] << 24) |
-            (ip_list_int[1] << 16) |
-            (ip_list_int[2] << 8)  |
-            ip_list_int[3]
-        )
     
-    def convert_int_to_ip(self, ip_int):
-        return ".".join([
-            str((ip_int >> 24) & 255),
-            str((ip_int >> 16) & 255),
-            str((ip_int >> 8) & 255),
-            str(ip_int & 255)
-        ])
+
+    def ip_para_int(self, ip_str):
+        """
+        Converte um endereço IP (ex: '192.168.20.0') para um inteiro de 32 bits.
+        Sem uso de bibliotecas — apenas operações básicas.
+
+        Exemplo: '192.168.20.0' -> 11000000.10101000.00010100.00000000
+        """
+        partes = ip_str.split('.')
+        resultado = 0
+        for parte in partes:
+            resultado = (resultado << 8) | int(parte)
+        return resultado
+
+    def int_para_ip(self, numero):
+        """
+        Converte um inteiro de 32 bits de volta para string IP.
+        Exemplo: 3232240640 -> '192.168.20.0'
+        """
+        partes = []
+        for _ in range(4):
+            partes.insert(0, str(numero & 0xFF))  # Pega os 8 bits menos significativos
+            numero >>= 8
+        return '.'.join(partes)
+
     
-    def aggregate(self, network1, network2):
-        ip1, prefix1 = network1.split("/")
-        ip2, prefix2 = network2.split("/")
+    
 
-        prefix1 = int(prefix1)
-        prefix2 = int(prefix2)
-
-        if prefix1 != prefix2: return None
-
-        ip1 = self.convert_ip_to_int(ip1)
-        ip2 = self.convert_ip_to_int(ip2)
-
-        host_bits = 32 - prefix1
-        number_of_ip_addresses = 1 << host_bits ## 2^n
-
-        if abs(ip1 - ip2) == number_of_ip_addresses: ## são adjacentes (ex: 192.168.21.0 - 192;168.20.0 = 256)
-            lower_ip = min(ip1, ip2)  ## pega o menor ip dos dois
-            new_prefix = prefix1 - 1 ## ex: /24 vira /23
-            new_host_bits = 32 - new_prefix ## nova quantidade de hosts
-            new_block_size = number_of_ip_addresses * 2
-
-
-            if lower_ip % new_block_size != 0:
-                return None
-
-            all_ones = 0xFFFFFFFF # 11111111.11111111.11111111.11111111
-            shifted = all_ones << new_host_bits ## ex: 1111111.11111111.11111110.00000000
-            mask = shifted & 0xFFFFFFFF
-
-            supernet_ip = lower_ip & mask
-            return f"{self.convert_int_to_ip(supernet_ip)}/{new_prefix}"
-        
-        else:
-            return None
-        
-    def summarize_non_contiguous_networks(self, networks):
+    def tentar_sumarizar(self, rede1, rede2):
         """
-        networks: lista tipo ['10.0.1.0/24', '10.0.2.0/24', ...]
-        Retorna super-rede ou None
+        Tenta agregar duas redes em uma super-rede.
+        Retorna a super-rede (string 'ip/prefixo') se for possível, ou None.
+
+        Condições para sumarização:
+        - As duas redes devem ter o mesmo prefixo (/24, /23, etc.)
+        - Devem ser "vizinhas" — diferir apenas no último bit do prefixo
+        - O bit que as diferencia deve ser 0 na primeira e 1 na segunda
+            (ou seja, a primeira é o bloco "par" e a segunda é o bloco "ímpar")
+
+        Exemplo:
+        192.168.20.0/24 + 192.168.21.0/24 -> 192.168.20.0/23
+        Binário: ...00010100 e ...00010101 -> diferem só no último bit do /24
         """
+        ip1_str, prefixo1_str = rede1.split('/')
+        ip2_str, prefixo2_str = rede2.split('/')
 
-        if len(networks) < 2:
+        prefixo1 = int(prefixo1_str)
+        prefixo2 = int(prefixo2_str)
+
+        # As redes precisam ter o mesmo prefixo
+        if prefixo1 != prefixo2:
             return None
 
-        ips = []
+        ip1 = self.ip_para_int(ip1_str)
+        ip2 = self.ip_para_int(ip2_str)
 
-        for net in networks:
-            ip, prefix = net.split("/")
-            ips.append(self.convert_ip_to_int(ip))
+        # Calcula a máscara do prefixo atual
+        # Ex: /24 -> 11111111.11111111.11111111.00000000
+        mascara_atual = (0xFFFFFFFF << (32 - prefixo1)) & 0xFFFFFFFF
 
-        min_ip = min(ips)
-        max_ip = max(ips)
+        # O novo prefixo é um bit menor (agrega dois blocos em um)
+        novo_prefixo = prefixo1 - 1
+        nova_mascara = (0xFFFFFFFF << (32 - novo_prefixo)) & 0xFFFFFFFF
 
-        diff = min_ip ^ max_ip
-
-        # quantos bits são necessários para representar diff
-        bits_diff = diff.bit_length()
-
-        new_prefix = 32 - bits_diff
-
-        # evitar superdimensionamento absurdo
-        if new_prefix < 8:
+        # Verifica se as duas redes pertencem ao mesmo bloco no novo prefixo
+        # Isso é: ambas têm a mesma parte de rede com o prefixo reduzido
+        if (ip1 & nova_mascara) != (ip2 & nova_mascara):
             return None
 
-        mask = (0xFFFFFFFF << (32 - new_prefix)) & 0xFFFFFFFF
-        supernet_ip = min_ip & mask
+        # Verifica que as redes são exatamente adjacentes:
+        # O XOR entre elas deve ser exatamente o bit que o novo prefixo "libera"
+        bit_diferenca = 1 << (32 - prefixo1)
+        if (ip1 ^ ip2) != bit_diferenca:
+            return None
 
-        return f"{self.convert_int_to_ip(supernet_ip)}/{new_prefix}"
+        # Calcula o endereço da super-rede (AND com nova máscara)
+        novo_ip = ip1 & nova_mascara
+        return f"{self.int_para_ip(novo_ip)}/{novo_prefixo}"
+        
             
+    
+    def sumarizar_tabela(self, tabela):
+        """
+        Aplica sumarização de rotas em uma cópia da tabela de roteamento.
+
+        Só sumariza rotas que:
+        1. Estão no formato 'ip/prefixo' (ignora endereços ip:porta)
+        2. Possuem o mesmo next_hop
+
+        O custo da rota sumarizada é o MAIOR custo entre as rotas originais
+        (comportamento conservador — anuncia o pior caso).
+
+        Retorna a tabela sumarizada.
+        """
+        import copy
+        tabela_resumida = copy.deepcopy(tabela)
+
+        # Filtra apenas rotas no formato CIDR (ignora entradas ip:porta)
+        def eh_cidr(destino):
+            return '/' in destino
+
+        houve_mudanca = True
+        # Repete até não encontrar mais nenhum par sumarizável
+        while houve_mudanca:
+            houve_mudanca = False
+            rotas_cidr = [dest for dest in tabela_resumida if eh_cidr(dest)]
+
+            # Compara todos os pares de rotas
+            for i in range(len(rotas_cidr)):
+                for j in range(i + 1, len(rotas_cidr)):
+                    rede_a = rotas_cidr[i]
+                    rede_b = rotas_cidr[j]
+
+                    # Condição principal: mesmo next_hop
+                    if tabela_resumida[rede_a]['next_hop'] != tabela_resumida[rede_b]['next_hop']:
+                        continue
+
+                    # Tenta agregar as duas redes
+                    super_rede = self.tentar_sumarizar(rede_a, rede_b)
+                    if super_rede is None:
+                        continue
+
+                    # Encontrou um par sumarizável!
+                    custo_a = tabela_resumida[rede_a]['cost']
+                    custo_b = tabela_resumida[rede_b]['cost']
+                    next_hop = tabela_resumida[rede_a]['next_hop']
+
+                    print(f"  [SUMARIZAÇÃO] {rede_a} + {rede_b} -> {super_rede} "
+                        f"(custo: max({custo_a}, {custo_b}) = {max(custo_a, custo_b)})")
+
+                    # Remove as rotas específicas e adiciona a super-rede
+                    del tabela_resumida[rede_a]
+                    del tabela_resumida[rede_b]
+                    tabela_resumida[super_rede] = {
+                        'cost': max(custo_a, custo_b),
+                        'next_hop': next_hop
+                    }
+
+                    houve_mudanca = True
+                    break  # Reinicia a busca com a tabela atualizada
+                if houve_mudanca:
+                    break
+
+        return tabela_resumida
     
 
     def send_updates_to_neighbors(self):
@@ -186,8 +289,10 @@ class Router:
         # 2. IMPLEMENTE A LÓGICA DE SUMARIZAÇÃO nesta cópia.
         # 3. ENVIE A CÓPIA SUMARIZADA no payload, em vez da tabela original.
         
-        tabela_para_enviar = copy.deepcopy(self.routing_table)
-        tabela_para_enviar = tabela_para_enviar
+        with self.lock:
+            tabela_para_enviar = copy.deepcopy(self.routing_table)
+
+        tabela_para_enviar = self.sumarizar_tabela(tabela_para_enviar)
 
         payload = {
             "sender_address": self.my_address,
@@ -261,42 +366,79 @@ def receive_update():
     #    uma boa ideia imprimir a nova tabela no console.
 
     if sender_address not in router_instance.neighbors:
-        print("Remetente não é vizinho direto. Ignorando.")
-        return jsonify({"status": "ignored"}), 200
-    
+        print(f"  [IGNORADO] {sender_address} não é um vizinho conhecido.")
+        return jsonify({"status": "ignored", "message": "Sender is not a known neighbor"}), 200
+
+    # 2. Obtém o custo do link direto para este vizinho
+    link_cost = router_instance.neighbors[sender_address]
+
+    # Controle para saber se a tabela foi alterada nesta atualização
     table_changed = False
-    
-    direct_cost = router_instance.neighbors[sender_address]
 
-    for network, info in sender_table.items():
-        received_cost = info["cost"]
-        new_cost = direct_cost + received_cost
+    with router_instance.lock:
 
-        if network == router_instance.my_network: continue
+        # 3. Itera sobre cada rota anunciada pelo vizinho
+        for network, info in sender_table.items():
 
-        if network not in router_instance.routing_table:
-            router_instance.routing_table[network] = {
-                "cost": new_cost,
-                "next_hop": sender_address
-            }
-            table_changed = True
-        else:
-            current_cost = router_instance.routing_table[network]["cost"]
-            current_next_hop = router_instance.routing_table[network]["next_hop"]
+            # Nunca sobrescreve a própria rede diretamente conectada
+            if network == router_instance.my_network:
+                continue
 
-            if new_cost < current_cost:
+            # Proteção adicional: ignora rotas que são super-redes da própria rede
+            # Ex: se minha rede é 10.0.0.0/24, ignoro 10.0.0.0/22 recebida de vizinho
+            if '/' in network:
+                ip_rede, prefixo = network.split('/')
+                ip_minha, prefixo_minha = router_instance.my_network.split('/')
+                if int(prefixo) < int(prefixo_minha):  # prefixo menor = rede maior = possível super-rede
+                    ip_r = router_instance.ip_para_int(ip_rede)
+                    ip_m = router_instance.ip_para_int(ip_minha.split('/')[0] if '/' in ip_minha else ip_minha)
+                    mascara = (0xFFFFFFFF << (32 - int(prefixo))) & 0xFFFFFFFF
+                    if (ip_r & mascara) == (ip_m & mascara):
+                        print(f"  [IGNORADO] {network} é super-rede da própria rede {router_instance.my_network}")
+                        continue
+
+            # 4. Calcula o novo custo pelo caminho passando pelo remetente
+            #    Fórmula de Bellman-Ford: d(x) = min(custo_link + custo_vizinho)
+            novo_custo = link_cost + info['cost']
+
+            # 5. Compara com o que já temos na tabela
+            rota_atual = router_instance.routing_table.get(network)
+
+            if rota_atual is None:
+                # 5a. Destino desconhecido — adiciona à tabela
                 router_instance.routing_table[network] = {
-                    "cost": new_cost,
-                    "next_hop": sender_address
+                    'cost': novo_custo,
+                    'next_hop': sender_address
                 }
-                table_changed = True
-            elif current_next_hop == sender_address:
-                router_instance.routing_table[network]["cost"] = new_cost
+                print(f"  [NOVA ROTA]  {network} via {sender_address} | custo: {novo_custo}")
                 table_changed = True
 
-    if table_changed:
-        print("Tabela atualizada:")
-        print(json.dumps(router_instance.routing_table, indent=4))
+            elif novo_custo < rota_atual['cost']:
+                # 5b. Caminho mais barato encontrado — atualiza
+                router_instance.routing_table[network] = {
+                    'cost': novo_custo,
+                    'next_hop': sender_address
+                }
+                print(f"  [ATUALIZADO] {network} via {sender_address} | custo: {rota_atual['cost']} -> {novo_custo}")
+                table_changed = True
+
+            elif rota_atual['next_hop'] == sender_address:
+                # 5c. O custo da rota atual já passa por este vizinho.
+                #     Deve atualizar mesmo que o custo aumente, pois o vizinho
+                #     pode estar reportando uma degradação ou falha no caminho.
+                if rota_atual['cost'] != novo_custo:
+                    print(f"  [REVISADO]   {network} via {sender_address} | custo: {rota_atual['cost']} -> {novo_custo}")
+                    router_instance.routing_table[network]['cost'] = novo_custo
+                    table_changed = True
+
+        # 6. Se a tabela mudou, exibe o novo estado no console
+        if table_changed:
+            print(f"\n  Tabela de roteamento atualizada:")
+            print(json.dumps(router_instance.routing_table, indent=4))
+        else:
+            print(f"  [SEM MUDANÇAS] Tabela mantida.")
+
+        # ─────────────────────────────────────────────────────────────────────────
 
     return jsonify({"status": "success", "message": "Update received"}), 200
 
