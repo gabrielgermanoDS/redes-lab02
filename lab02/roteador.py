@@ -90,6 +90,8 @@ class Router:
     "10.0.2.0/24": {"cost": 3, "next_hop": "127.0.0.1:5001"},
     "10.0.3.0/24": {"cost": 4, "next_hop": "127.0.0.1:5001"},
 }
+        
+        
 
         print("sumarizar tabela")
         print("1")
@@ -101,7 +103,7 @@ class Router:
 
     
         
-        print(self.sumarizar_tabela(tabela3))
+        print(self.sumarizar_tabela(tabela23))
         print("4")
 
         print(self.sumarizar_tabela(tabela4))
@@ -195,7 +197,7 @@ class Router:
         nova_mascara = (0xFFFFFFFF << (32 - novo_prefixo)) & 0xFFFFFFFF
 
         # Verifica se as duas redes pertencem ao mesmo bloco no novo prefixo
-        # Isso é: ambas têm a mesma parte de rede com o prefixo reduzido
+        # Isso é: ambas têm a mesma parte de rede fcom o prefixo reduzido
         if (ip1 & nova_mascara) != (ip2 & nova_mascara):
             return None
 
@@ -303,6 +305,7 @@ class Router:
             url = f'http://{neighbor_address}/receive_update'
             try:
                 print(f"Enviando tabela para {neighbor_address}")
+                print(f"Tabela Enviada: {tabela_para_enviar}")
                 requests.post(url, json=payload, timeout=5)
             except requests.exceptions.RequestException as e:
                 print(f"Não foi possível conectar ao vizinho {neighbor_address}. Erro: {e}")
