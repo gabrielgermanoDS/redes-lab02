@@ -55,60 +55,6 @@ class Router:
             'next_hop': self.my_network
         }
 
-        # for vizinho_address, link_cost in self.neighbors.items():
-        #     self.routing_table[vizinho_address] = {
-        #         'cost': link_cost,
-        #         'next_hop': vizinho_address
-        #     }
-
-        print(self.tentar_sumarizar("192.168.20.0/24", "192.168.21.0/24"))
-        print(self.tentar_sumarizar("192.168.0.0/24", "192.168.1.0/24"))
-        print(self.tentar_sumarizar("10.0.0.0/23", "10.0.2.0/23"))
-        print(self.tentar_sumarizar("172.16.0.0/25", "172.16.0.128/25"))
-        print("")
-        print(self.tentar_sumarizar("192.168.20.0/24", "192.168.22.0/24"))
-        print(self.tentar_sumarizar("192.168.21.0/24", "192.168.22.0/24"))
-        print(self.tentar_sumarizar("192.168.20.0/24", "192.168.20.128/25"))
-        
-        tabela = {
-    "10.0.0.0/24": {"cost": 2, "next_hop": "127.0.0.1:5001"},
-    "10.0.1.0/24": {"cost": 3, "next_hop": "127.0.0.1:5001"},
-}
-        tabela2 = {
-    "10.0.0.0/24": {"cost": 2, "next_hop": "127.0.0.1:5001"},
-    "10.0.2.0/24": {"cost": 3, "next_hop": "127.0.0.1:5001"},
-}
-        
-        tabela3 = {
-    "10.0.0.0/24": {"cost": 2, "next_hop": "127.0.0.1:5001"},
-    "10.0.1.0/24": {"cost": 3, "next_hop": "127.0.0.1:5002"},
-}
-        
-        tabela4 = {
-    "10.0.0.0/24": {"cost": 1, "next_hop": "127.0.0.1:5001"},
-    "10.0.1.0/24": {"cost": 2, "next_hop": "127.0.0.1:5001"},
-    "10.0.2.0/24": {"cost": 3, "next_hop": "127.0.0.1:5001"},
-    "10.0.3.0/24": {"cost": 4, "next_hop": "127.0.0.1:5001"},
-}
-        
-        
-
-        print("sumarizar tabela")
-        print("1")
-        print(self.sumarizar_tabela(tabela))
-        print("2")
-
-        print(self.sumarizar_tabela(tabela2))
-        print("3")
-
-    
-        
-        print(self.sumarizar_tabela(tabela23))
-        print("4")
-
-        print(self.sumarizar_tabela(tabela4))
-
-
         print("Tabela de roteamento inicial:")
         print(json.dumps(self.routing_table, indent=4))
 
