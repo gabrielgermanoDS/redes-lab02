@@ -20,3 +20,5 @@ python3 roteador.py -p 5011 -f R11.csv --network 10.0.11.0/24 &
 python3 roteador.py -p 5012 -f R12.csv --network 10.0.12.0/24 &
 
 wait
+
+## killall python3 para parar o script

@@ -255,6 +255,39 @@ class Router:
                 requests.post(url, json=payload, timeout=5)
             except requests.exceptions.RequestException as e:
                 print(f"Não foi possível conectar ao vizinho {neighbor_address}. Erro: {e}")
+                
+    def summarize_non_contiguous_networks(self, networks):
+        """
+        networks: lista tipo ['10.0.1.0/24', '10.0.2.0/24', ...]
+        Retorna super-rede ou None
+        """
+
+        if len(networks) < 2:
+            return None
+
+        ips = []
+
+        for net in networks:
+            ip, prefix = net.split("/")
+            ips.append(self.convert_ip_to_int(ip))
+
+        min_ip = min(ips)
+        max_ip = max(ips)
+
+        diff = min_ip ^ max_ip
+
+        # quantos bits são necessários para representar diff
+        bits_diff = diff.bit_length()
+
+        new_prefix = 32 - bits_diff
+
+        # evitar superdimensionamento absurdo
+        if new_prefix < 8:
+            return None
+
+        mask = (0xFFFFFFFF << (32 - new_prefix)) & 0xFFFFFFFF
+        supernet_ip = min_ip & mask
+        return f"{self.convert_int_to_ip(supernet_ip)}/{new_prefix}"
 
 # --- API Endpoints ---
 # Instância do Flask e do Roteador (serão inicializadas no main)
@@ -345,6 +378,12 @@ def receive_update():
                     if (ip_r & mascara) == (ip_m & mascara):
                         print(f"  [IGNORADO] {network} é super-rede da própria rede {router_instance.my_network}")
                         continue
+
+            # if '/' in network:
+            #     _, prefixo = network.split('/')
+            #     if int(prefixo) < 24:
+            #         print(f"  [IGNORADO] rota sumarizada recebida: {network}")
+            #         continue
 
             # 4. Calcula o novo custo pelo caminho passando pelo remetente
             #    Fórmula de Bellman-Ford: d(x) = min(custo_link + custo_vizinho)
